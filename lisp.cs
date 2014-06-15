@@ -266,11 +266,59 @@ class Evaluator {
       }
       return bind.cons().cdr;
     }
-    return Util.makeError("noimpl");
+
+    LObj op = Util.safeCar(obj);
+    LObj args = Util.safeCdr(obj);
+    if (op == Util.makeSym("quote")) {
+      return Util.safeCar(args);
+    } else if (op == Util.makeSym("if")) {
+      if (eval(Util.safeCar(args), env) == Util.kNil) {
+        return eval(Util.safeCar(Util.safeCdr(Util.safeCdr(args))), env);
+      }
+      return eval(Util.safeCar(Util.safeCdr(args)), env);
+    }
+    return apply(eval(op, env), evlis(args, env), env);
+  }
+
+  private static LObj evlis(LObj lst, LObj env) {
+    LObj ret = Util.kNil;
+    while (lst.tag() == Type.Cons) {
+      LObj elm = eval(lst.cons().car, env);
+      if (elm.tag() == Type.Error) {
+        return elm;
+      }
+      ret = Util.makeCons(elm, ret);
+      lst = lst.cons().cdr;
+    }
+    return Util.nreverse(ret);
+  }
+
+  private static LObj apply(LObj fn, LObj args, LObj env) {
+    if (fn.tag() == Type.Error) {
+      return fn;
+    } else if (args.tag() == Type.Error) {
+      return args;
+    } else if (fn.tag() == Type.Subr) {
+      return fn.subr()(args);
+    }
+    return Util.makeError(fn.ToString() + " is not function");
   }
 
   private static LObj makeGlobalEnv() {
     LObj env = Util.makeCons(Util.kNil, Util.kNil);
+    Subr subrCar = delegate(LObj args) {
+      return Util.safeCar(Util.safeCar(args));
+    };
+    Subr subrCdr = delegate(LObj args) {
+      return Util.safeCdr(Util.safeCar(args));
+    };
+    Subr subrCons = delegate(LObj args) {
+      return Util.makeCons(Util.safeCar(args),
+                           Util.safeCar(Util.safeCdr(args)));
+    };
+    addToEnv(Util.makeSym("car"), Util.makeSubr(subrCar), env);
+    addToEnv(Util.makeSym("cdr"), Util.makeSubr(subrCdr), env);
+    addToEnv(Util.makeSym("cons"), Util.makeSubr(subrCons), env);
     addToEnv(Util.makeSym("t"), Util.makeSym("t"), env);
     return env;
   }
