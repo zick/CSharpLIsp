@@ -140,6 +140,16 @@ class Util {
     return ret;
   }
 
+  public static LObj pairlis(LObj lst1, LObj lst2) {
+    LObj ret = kNil;
+    while (lst1.tag() == Type.Cons && lst2.tag() == Type.Cons) {
+      ret = makeCons(makeCons(lst1.cons().car, lst2.cons().car), ret);
+      lst1 = lst1.cons().cdr;
+      lst2 = lst2.cons().cdr;
+    }
+    return nreverse(ret);
+  }
+
   public static LObj kNil = new LObj(Type.Nil, "nil");
   private static Hashtable symbolMap = new Hashtable();
 }
@@ -276,6 +286,8 @@ class Evaluator {
         return eval(Util.safeCar(Util.safeCdr(Util.safeCdr(args))), env);
       }
       return eval(Util.safeCar(Util.safeCdr(args)), env);
+    } else if (op == Util.makeSym("lambda")) {
+      return Util.makeExpr(args, env);
     }
     return apply(eval(op, env), evlis(args, env), env);
   }
@@ -293,6 +305,15 @@ class Evaluator {
     return Util.nreverse(ret);
   }
 
+  private static LObj progn(LObj body, LObj env) {
+    LObj ret = Util.kNil;
+    while (body.tag() == Type.Cons) {
+      ret = eval(body.cons().car, env);
+      body = body.cons().cdr;
+    }
+    return ret;
+  }
+
   private static LObj apply(LObj fn, LObj args, LObj env) {
     if (fn.tag() == Type.Error) {
       return fn;
@@ -300,6 +321,10 @@ class Evaluator {
       return args;
     } else if (fn.tag() == Type.Subr) {
       return fn.subr()(args);
+    } else if (fn.tag() == Type.Expr) {
+      return progn(fn.expr().body,
+                   Util.makeCons(Util.pairlis(fn.expr().args, args),
+                   fn.expr().env));
     }
     return Util.makeError(fn.ToString() + " is not function");
   }
