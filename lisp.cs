@@ -28,6 +28,43 @@ class LObj {
     return (Expr)data_;
   }
 
+  public override String ToString() {
+    if (tag_ == Type.Nil) {
+      return "nil";
+    } else if (tag_ == Type.Num) {
+      return num().ToString();
+    } else if (tag_ == Type.Sym) {
+      return str();
+    } else if (tag_ == Type.Error) {
+      return "<error: " + str() + ">";
+    } else if (tag_ == Type.Cons) {
+      return listToString(this);
+    } else if (tag_ == Type.Subr) {
+      return "<subr>";
+    } else if (tag_ == Type.Expr) {
+      return "<expr>";
+    }
+    return "<unknown>";
+  }
+
+  private String listToString(LObj obj) {
+    String ret = "";
+    bool first = true;
+    while (obj.tag() == Type.Cons) {
+      if (first) {
+        first = false;
+      } else {
+        ret += " ";
+      }
+      ret += obj.cons().car.ToString();
+      obj = obj.cons().cdr;
+    }
+    if (obj.tag() == Type.Nil) {
+      return "(" + ret + ")";
+    }
+    return "(" + ret + " . " + obj.ToString() + ")";
+  }
+
   private Type tag_;
   private object data_;
 }
@@ -92,6 +129,17 @@ class Util {
     return kNil;
   }
 
+  public static LObj nreverse(LObj lst) {
+    LObj ret = kNil;
+    while (lst.tag() == Type.Cons) {
+      LObj tmp = lst.cons().cdr;
+      lst.cons().cdr = ret;
+      ret = lst;
+      lst = tmp;
+    }
+    return ret;
+  }
+
   public static LObj kNil = new LObj(Type.Nil, "nil");
   private static Hashtable symbolMap = new Hashtable();
 }
@@ -154,11 +202,33 @@ class Reader {
     } else if (str[0] == kRPar) {
       return parseError("invalid syntax: " + str);
     } else if (str[0] == kLPar) {
-      return parseError("noimpl");
+      return readList(str.Substring(1));
     } else if (str[0] == kQuote) {
-      return parseError("noimpl");
+      ParseState tmp = read(str.Substring(1));
+      return new ParseState(Util.makeCons(Util.makeSym("quote"),
+                                          Util.makeCons(tmp.obj, Util.kNil)),
+                            tmp.next);
     }
     return readAtom(str);
+  }
+
+  private static ParseState readList(String str) {
+    LObj ret = Util.kNil;
+    while (true) {
+      str = skipSpaces(str);
+      if (str.Length == 0) {
+        return parseError("unfinished parenthesis");
+      } else if (str[0] == kRPar) {
+        break;
+      }
+      ParseState tmp = read(str);
+      if (tmp.obj.tag() == Type.Error) {
+        return tmp;
+      }
+      ret = Util.makeCons(tmp.obj, ret);
+      str = tmp.next;
+    }
+    return new ParseState(Util.nreverse(ret), str.Substring(1));
   }
 
   private static char kLPar = '(';
