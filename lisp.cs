@@ -236,12 +236,57 @@ class Reader {
   private static char kQuote = '\'';
 }
 
+class Evaluator {
+  private static LObj findVar(LObj sym, LObj env) {
+    while (env.tag() == Type.Cons) {
+      LObj alist = env.cons().car;
+      while (alist.tag() == Type.Cons) {
+        if (alist.cons().car.cons().car == sym) {
+          return alist.cons().car;
+        }
+        alist = alist.cons().cdr;
+      }
+      env = env.cons().cdr;
+    }
+    return Util.kNil;
+  }
+
+  public static void addToEnv(LObj sym, LObj val, LObj env) {
+    env.cons().car = Util.makeCons(Util.makeCons(sym, val), env.cons().car);
+  }
+
+  public static LObj eval(LObj obj, LObj env) {
+    if (obj.tag() == Type.Nil || obj.tag() == Type.Num ||
+        obj.tag() == Type.Error) {
+      return obj;
+    } else if (obj.tag() == Type.Sym) {
+      LObj bind = findVar(obj, env);
+      if (bind == Util.kNil) {
+        return Util.makeError(obj.str() + " has no value");
+      }
+      return bind.cons().cdr;
+    }
+    return Util.makeError("noimpl");
+  }
+
+  private static LObj makeGlobalEnv() {
+    LObj env = Util.makeCons(Util.kNil, Util.kNil);
+    addToEnv(Util.makeSym("t"), Util.makeSym("t"), env);
+    return env;
+  }
+
+  public static LObj globalEnv() { return gEnv; }
+
+  private static LObj gEnv = makeGlobalEnv();
+}
+
 class Lisp {
   static void Main() {
+    LObj gEnv = Evaluator.globalEnv();
     string line;
     Console.Write("> ");
     while ((line = Console.In.ReadLine()) != null) {
-      Console.Write(Reader.read(line).obj);
+      Console.Write(Evaluator.eval(Reader.read(line).obj, gEnv));
       Console.Write("\n> ");
     }
   }
