@@ -344,6 +344,31 @@ class Evaluator {
     return Util.makeError(fn.ToString() + " is not function");
   }
 
+  delegate Int32 NumOp(Int32 x, Int32 y);
+  private static Subr subrAddOrMul(Int32 initVal, NumOp fn) {
+    return delegate(LObj args) {
+      Int32 ret = initVal;
+      while (args.tag() == Type.Cons) {
+        if (args.cons().car.tag() != Type.Num) {
+          return Util.makeError("wrong type");
+        }
+        ret = fn(ret, args.cons().car.num());
+        args = args.cons().cdr;
+      }
+      return Util.makeNum(ret);
+    };
+  }
+  private static Subr subrSubOrDivOrMod(NumOp fn) {
+    return delegate(LObj args) {
+      LObj x = Util.safeCar(args);
+      LObj y = Util.safeCar(Util.safeCdr(args));
+      if (x.tag() != Type.Num || y.tag() != Type.Num) {
+        return Util.makeError("wrong type");
+      }
+      return Util.makeNum(fn(x.num(), y.num()));
+    };
+  }
+
   private static LObj makeGlobalEnv() {
     LObj env = Util.makeCons(Util.kNil, Util.kNil);
     Subr subrCar = delegate(LObj args) {
@@ -356,9 +381,59 @@ class Evaluator {
       return Util.makeCons(Util.safeCar(args),
                            Util.safeCar(Util.safeCdr(args)));
     };
+    Subr subrEq = delegate(LObj args) {
+      LObj x = Util.safeCar(args);
+      LObj y = Util.safeCar(Util.safeCdr(args));
+      if (x.tag() == Type.Num && y.tag() == Type.Num) {
+        if (x.num() == y.num()) {
+          return Util.makeSym("t");
+        }
+        return Util.kNil;
+      } else if (x == y) {
+        return Util.makeSym("t");
+      }
+      return Util.kNil;
+    };
+    Subr subrAtom = delegate(LObj args) {
+      if (Util.safeCar(args).tag() == Type.Cons) {
+        return Util.kNil;
+      }
+      return Util.makeSym("t");
+    };
+    Subr subrNumberp = delegate(LObj args) {
+      if (Util.safeCar(args).tag() == Type.Num) {
+        return Util.makeSym("t");
+      }
+      return Util.kNil;
+    };
+    Subr subrSymbolp = delegate(LObj args) {
+      if (Util.safeCar(args).tag() == Type.Sym) {
+        return Util.makeSym("t");
+      }
+      return Util.kNil;
+    };
+    Subr subrAdd =
+        subrAddOrMul(0, delegate(Int32 x, Int32 y) { return x + y; });
+    Subr subrMul =
+        subrAddOrMul(1, delegate(Int32 x, Int32 y) { return x * y; });
+    Subr subrSub =
+        subrSubOrDivOrMod(delegate(Int32 x, Int32 y) { return x - y; });
+    Subr subrDiv =
+        subrSubOrDivOrMod(delegate(Int32 x, Int32 y) { return x / y; });
+    Subr subrMod =
+        subrSubOrDivOrMod(delegate(Int32 x, Int32 y) { return x % y; });
     addToEnv(Util.makeSym("car"), Util.makeSubr(subrCar), env);
     addToEnv(Util.makeSym("cdr"), Util.makeSubr(subrCdr), env);
     addToEnv(Util.makeSym("cons"), Util.makeSubr(subrCons), env);
+    addToEnv(Util.makeSym("eq"), Util.makeSubr(subrEq), env);
+    addToEnv(Util.makeSym("atom"), Util.makeSubr(subrAtom), env);
+    addToEnv(Util.makeSym("numberp"), Util.makeSubr(subrNumberp), env);
+    addToEnv(Util.makeSym("symbolp"), Util.makeSubr(subrSymbolp), env);
+    addToEnv(Util.makeSym("+"), Util.makeSubr(subrAdd), env);
+    addToEnv(Util.makeSym("*"), Util.makeSubr(subrMul), env);
+    addToEnv(Util.makeSym("-"), Util.makeSubr(subrSub), env);
+    addToEnv(Util.makeSym("/"), Util.makeSubr(subrDiv), env);
+    addToEnv(Util.makeSym("mod"), Util.makeSubr(subrMod), env);
     addToEnv(Util.makeSym("t"), Util.makeSym("t"), env);
     return env;
   }
