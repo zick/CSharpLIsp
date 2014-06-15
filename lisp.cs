@@ -288,6 +288,11 @@ class Evaluator {
       return eval(Util.safeCar(Util.safeCdr(args)), env);
     } else if (op == Util.makeSym("lambda")) {
       return Util.makeExpr(args, env);
+    } else if (op == Util.makeSym("defun")) {
+      LObj expr = Util.makeExpr(Util.safeCdr(args), env);
+      LObj sym = Util.safeCar(args);
+      addToEnv(sym, expr, gEnv);
+      return sym;
     }
     return apply(eval(op, env), evlis(args, env), env);
   }
